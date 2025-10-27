@@ -17,7 +17,6 @@ namespace Quant.Reports
 
         private static string Quote(string s)
         {
-            // Quote if it contains comma, quote, or newline; double quotes inside (RFC 4180)
             if (s.IndexOfAny(new[] { ',', '"', '\n', '\r' }) >= 0)
             {
                 var escaped = s.Replace("\"", "\"\"");

@@ -12,7 +12,6 @@
     <PackageReference Include="coverlet.collector" Version="6.0.2" />
   </ItemGroup>
 
-  <!-- Point this to your APP project. Your .sln references: src/QuantFrameworks.csproj -->
   <ItemGroup>
     <ProjectReference Include="..\..\src\QuantFrameworks.csproj" />
   </ItemGroup>
