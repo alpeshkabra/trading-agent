@@ -1,38 +1,35 @@
-# BacktestingEngine (C# / .NET 8)
+# QuantFrameworks (C# / .NET 8)
 
-A minimal yet extensible backtesting skeleton you can extend into a full-fledged engine.
+Focused starter: read CSV OHLCV, compute daily returns, Quant SPY vs stocks.
 
-## Features
-
-- Console app, .NET 8
-- CSV data loader (OHLCV, daily)
-- Simple SMA crossover strategy
-- Order/Trade/Portfolio model with daily bar matching
-- Execution slippage
-- Equity curve & trades CSV reports
-- Clean namespaces and folders to extend (Indicators/Strategies/Engine)
-
-## Project layout
-
-(see tree in repo)
-
-## Build & run
-
-Requires .NET 8 SDK.
-
+## Build
 ```bash
-cd BacktestingEngine/src
-dotnet build -c Release
+cd src
+dotnet build
+```
+
+## Run
+```bash
 dotnet run -- --help
+dotnet run -- --spy data/SPY.csv --stocks data/AAPL.csv,data/MSFT.csv --from 2018-01-01 --out reports
 ```
 
-### Example
-
+### CSV format
+Header required:
 ```
-dotnet run -- --data data/SPY.csv --symbol SPY --from 2015-01-01 --cash 100000 --strategy mac --fast 20 --slow 50 --slippage 0.0005 --report reports
+Date,Open,High,Low,Close,Volume
+2018-01-02,100,101,99,100.5,123456
+...
 ```
 
-Outputs:
+## Output
+`reports/Quant_<TICKER>_vs_SPY.csv` with columns:
+`Date, SPY_Return, <TICKER>_Return, <TICKER>_Excess`
 
-- `reports/equity_curve.csv` with Date,Equity
-- `reports/trades.csv` with trade blotter
+Also prints mean returns and correlation to the console.
+
+
+## Run tests
+
+dotnet sln Quant.sln add .\tests\Quant.Tests\Quant.Tests.csproj
+dotnet test

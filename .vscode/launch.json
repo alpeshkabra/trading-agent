@@ -1,0 +1,33 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": ".NET Launch (Help)",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/bin/Debug/net8.0/QuantFrameworks.dll",
+      "args": ["--help"],
+      "cwd": "${workspaceFolder}/src",
+      "console": "integratedTerminal",
+      "stopAtEntry": false,
+      "preLaunchTask": "build"
+    },
+    {
+      "name": ".NET Launch (Quant AAPL vs SPY)",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/bin/Debug/net8.0/QuantFrameworks.dll",
+      "args": [
+        "--spy", "data/SPY.csv",
+        "--stocks", "data/AAPL.csv",
+        "--from", "2018-01-01",
+        "--out", "reports"
+      ],
+      "cwd": "${workspaceFolder}/src",
+      "console": "integratedTerminal",
+      "stopAtEntry": false,
+      "preLaunchTask": "build",
+      "justMyCode": true
+    }
+  ]
+}

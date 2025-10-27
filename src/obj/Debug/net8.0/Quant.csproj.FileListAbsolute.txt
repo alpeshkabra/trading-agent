@@ -1,0 +1,15 @@
+C:\Work\C#\trading-agent\src\bin\Debug\net8.0\QuantFrameworks.exe
+C:\Work\C#\trading-agent\src\bin\Debug\net8.0\QuantFrameworks.deps.json
+C:\Work\C#\trading-agent\src\bin\Debug\net8.0\QuantFrameworks.runtimeconfig.json
+C:\Work\C#\trading-agent\src\bin\Debug\net8.0\QuantFrameworks.dll
+C:\Work\C#\trading-agent\src\bin\Debug\net8.0\QuantFrameworks.pdb
+C:\Work\C#\trading-agent\src\obj\Debug\net8.0\Quant.GeneratedMSBuildEditorConfig.editorconfig
+C:\Work\C#\trading-agent\src\obj\Debug\net8.0\Quant.AssemblyInfoInputs.cache
+C:\Work\C#\trading-agent\src\obj\Debug\net8.0\Quant.AssemblyInfo.cs
+C:\Work\C#\trading-agent\src\obj\Debug\net8.0\Quant.csproj.CoreCompileInputs.cache
+C:\Work\C#\trading-agent\src\obj\Debug\net8.0\Quant.sourcelink.json
+C:\Work\C#\trading-agent\src\obj\Debug\net8.0\QuantFrameworks.dll
+C:\Work\C#\trading-agent\src\obj\Debug\net8.0\refint\QuantFrameworks.dll
+C:\Work\C#\trading-agent\src\obj\Debug\net8.0\QuantFrameworks.pdb
+C:\Work\C#\trading-agent\src\obj\Debug\net8.0\Quant.genruntimeconfig.cache
+C:\Work\C#\trading-agent\src\obj\Debug\net8.0\ref\QuantFrameworks.dll

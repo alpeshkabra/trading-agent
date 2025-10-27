@@ -1,30 +1,26 @@
-using Backtesting.Core;
-using Backtesting.Data;
-using Backtesting.Engine;
-using Backtesting.Models;
-using Backtesting.Reports;
-using Backtesting.Strategies;
-using Backtesting.Utils;
+using Quant.Data;
+using Quant.Models;
+using Quant.Analytics;
+using Quant.Reports;
 
-namespace Backtesting;
+namespace Quant;
 
 public static class Program
 {
-    private static void PrintHelp()
+    private static void Help()
     {
         Console.WriteLine(@"
-BacktestingEngine - minimal yet extensible C# backtester
+QuantFrameworks - CSV reader + SPY vs stocks daily return comparison
 
 Usage:
-  dotnet run -- --data <path-to-csv> --symbol <TICKER> [--from YYYY-MM-DD] [--to YYYY-MM-DD]
-               [--cash 100000] [--strategy mac] [--fast 10] [--slow 30] [--slippage 0.0]
-               [--report outdir]
+  dotnet run -- --spy <path-to-SPY.csv> --stocks <CSV1,CSV2,...> [--from YYYY-MM-DD] [--to YYYY-MM-DD]
+              [--field Close] [--out reports]
 
-CSV format (OHLCV daily):
+CSV format (OHLCV daily, header required):
   Date,Open,High,Low,Close,Volume
 
 Example:
-  dotnet run -- --data data/SPY.csv --symbol SPY --from 2015-01-01 --cash 100000 --strategy mac --fast 20 --slow 50 --report reports
+  dotnet run -- --spy data/SPY.csv --stocks data/AAPL.csv,data/MSFT.csv --from 2018-01-01 --out reports
 ");
     }
 
@@ -32,62 +28,92 @@ Example:
     {
         if (args.Length == 0 || args.Contains("--help") || args.Contains("-h"))
         {
-            PrintHelp();
+            Help();
             return 0;
         }
 
-        var cfg = Config.FromArgs(args);
-        Logger.Level = LogLevel.Info;
+        string? spyPath = GetArg(args, "spy");
+        string? stockList = GetArg(args, "stocks");
+        string field = GetArg(args, "field", "Close")!;
+        string outDir = GetArg(args, "out", "reports")!;
+        DateOnly? from = ParseDate(GetArg(args, "from"));
+        DateOnly? to = ParseDate(GetArg(args, "to"));
 
-        try
+        if (string.IsNullOrWhiteSpace(spyPath) || string.IsNullOrWhiteSpace(stockList))
         {
-            if (cfg.ReportDir is not null)
+            Console.Error.WriteLine("ERROR: --spy and --stocks are required.");
+            Help();
+            return 2;
+        }
+
+        Directory.CreateDirectory(outDir);
+
+        var spy = new CsvReader(spyPath).ReadBars(from, to).ToList();
+        if (spy.Count == 0) { Console.Error.WriteLine("No rows loaded for SPY."); return 3; }
+        var spySeries = spy.Select(b => new PricePoint(b.Date, PickField(b, field))).ToList();
+        var spyReturns = Returns.Simple(spySeries).ToList();
+
+        var stockPaths = stockList.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var path in stockPaths)
+        {
+            var bars = new CsvReader(path).ReadBars(from, to).ToList();
+            if (bars.Count == 0) { Console.WriteLine($"WARN: no rows for {path}"); continue; }
+
+            var ticker = InferTickerFromPath(path);
+            var px = bars.Select(b => new PricePoint(b.Date, PickField(b, field))).ToList();
+            var rets = Returns.Simple(px).ToList();
+
+            var (spyAligned, stockAligned) = Aligner.AlignByDate(spyReturns, rets);
+
+            var rows = new List<string[]>();
+            rows.Add(new[] { "Date", "SPY_Return", $"{ticker}_Return", $"{ticker}_Excess" });
+            for (int i = 0; i < spyAligned.Count; i++)
             {
-                Directory.CreateDirectory(cfg.ReportDir);
+                var d = spyAligned[i].Date;
+                var rSpy = spyAligned[i].Return;
+                var rStk = stockAligned[i].Return;
+                var excess = rStk - rSpy;
+                rows.Add(new[] { d.ToString("yyyy-MM-dd"), rSpy.ToString("F6"), rStk.ToString("F6"), excess.ToString("F6") });
             }
 
-            IDataProvider dataProvider = new CsvDataProvider(cfg.DataPath);
-            var bars = dataProvider.LoadBars(cfg.From, cfg.To).ToList();
-            if (bars.Count == 0)
-            {
-                Logger.Error("No data rows loaded. Check --data path and date filters.");
-                return 2;
-            }
-            Logger.Info($"Loaded {bars.Count} bars from {cfg.DataPath}");
+            var outPath = Path.Combine(outDir, $"Quant_{ticker}_vs_SPY.csv");
+            CsvWriter.Write(outPath, rows);
+            Console.WriteLine($"Wrote {outPath} ({rows.Count-1} rows).");
 
-            IStrategy strategy = cfg.Strategy switch
-            {
-                "mac" => new MovingAverageCrossStrategy(cfg.Fast, cfg.Slow),
-                _ => throw new ArgumentException($"Unknown strategy '{cfg.Strategy}'. Try 'mac' (moving average cross).")
-            };
-
-            var engine = new BacktestEngine(cfg.Symbol ?? "SYMB", new ExecutionSimulator(cfg.Slippage));
-            var (portfolio, trades) = engine.Run(bars, strategy, cfg.Cash);
-
-            var eq = new EquityCurveReporter();
-            var reportDir = cfg.ReportDir ?? "reports";
-            Directory.CreateDirectory(reportDir);
-            var eqPath = Path.Combine(reportDir, "equity_curve.csv");
-            var trPath = Path.Combine(reportDir, "trades.csv");
-            eq.WriteCsv(eqPath, portfolio.EquityCurve);
-            TradeReport.WriteCsv(trPath, trades);
-            Logger.Info($"Wrote reports: {eqPath} and {trPath}");
-
-            Console.WriteLine();
-            Console.WriteLine("== SUMMARY ==");
-            Console.WriteLine($"Bars: {bars.Count}");
-            Console.WriteLine($"Trades: {trades.Count}");
-            Console.WriteLine($"Start Equity: {cfg.Cash:C2}");
-            Console.WriteLine($"End Equity:   {portfolio.EquityCurve.Last().Equity:C2}");
-            Console.WriteLine($"Return:       {(portfolio.EquityCurve.Last().Equity / cfg.Cash - 1.0):P2}");
-            Console.WriteLine();
-
-            return 0;
+            var avgSpy = spyAligned.Average(p => p.Return);
+            var avgStk = stockAligned.Average(p => p.Return);
+            var corr = Stats.Correlation(spyAligned.Select(p => p.Return), stockAligned.Select(p => p.Return));
+            Console.WriteLine($"Summary {ticker}: meanRet={avgStk:F6}, meanSPY={avgSpy:F6}, corr={corr:F4}");
         }
-        catch (Exception ex)
+
+        return 0;
+    }
+
+    private static string? GetArg(string[] args, string name, string? def = null)
+    {
+        var i = Array.FindIndex(args, a => a == $"--{name}");
+        if (i >= 0 && i + 1 < args.Length) return args[i + 1];
+        return def;
+    }
+
+    private static DateOnly? ParseDate(string? s) => DateOnly.TryParse(s, out var d) ? d : null;
+
+    private static string InferTickerFromPath(string path)
+    {
+        var file = Path.GetFileNameWithoutExtension(path);
+        if (file.Contains('_')) file = file.Split('_').Last();
+        return file.ToUpperInvariant();
+    }
+
+    private static double PickField(Bar b, string field)
+    {
+        return field.ToLowerInvariant() switch
         {
-            Logger.Error(ex.ToString());
-            return 1;
-        }
+            "open" => b.Open,
+            "high" => b.High,
+            "low" => b.Low,
+            "close" => b.Close,
+            _ => b.Close
+        };
     }
 }
