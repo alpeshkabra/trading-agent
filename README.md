@@ -12,6 +12,7 @@ dotnet build
 ```bash
 dotnet run -- --help
 dotnet run -- --spy data/SPY.csv --stocks data/AAPL.csv,data/MSFT.csv --from 2018-01-01 --out reports
+dotnet run -- --spy data/SPY.csv --stocks data/AAPL.csv,data/MSFT.csv --from 2020-01-01 --out reports --portfolio AAPL=0.6,MSFT=0.4 --portfolio-label tech6040
 ```
 
 ### CSV format
