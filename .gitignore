@@ -1,0 +1,8 @@
+bin/
+obj/
+*.user
+*.suo
+*.DS_Store
+*.log
+*.tmp
+*.zip
