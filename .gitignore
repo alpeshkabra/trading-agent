@@ -1,0 +1,55 @@
+# Build outputs
+bin/
+obj/
+out/
+artifacts/
+
+# VS Code / VS / Rider
+.vscode/
+.idea/
+*.user
+*.suo
+*.userprefs
+*.csproj.user
+*.DotSettings*
+
+# Logs and temp
+*.log
+*.tmp
+*.cache
+*.swp
+*.bak
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.pdb
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test results and coverage
+TestResult*/
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+coverage*.json
+*.nupkg
+
+# Tools and package restore caches
+.nuget/
+packages/
+node_modules/
+dist/
+publish/
+wwwroot/lib/
+
+# Ignore your own data or generated CSVs (optional)
+data/
+reports/
+
+# If you use Python or other scripts occasionally
+__pycache__/
+*.pyc
