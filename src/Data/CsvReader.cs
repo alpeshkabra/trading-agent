@@ -11,13 +11,15 @@ namespace Quant.Data
         public IEnumerable<Bar> ReadBars(DateOnly? from = null, DateOnly? to = null)
         {
             using var sr = new StreamReader(_path);
-            // header
+
+            // Read and discard header
             _ = sr.ReadLine();
 
             string? line;
             while ((line = sr.ReadLine()) is not null)
             {
                 if (string.IsNullOrWhiteSpace(line)) continue;
+
                 var cols = line.Split(',');
                 if (cols.Length < 5) continue;
 
@@ -25,25 +27,31 @@ namespace Quant.Data
                 if (from is not null && date < from) continue;
                 if (to is not null && date > to) continue;
 
-                double open  = Parse(cols, 1);
-                double high  = Parse(cols, 2);
-                double low   = Parse(cols, 3);
-                double close = Parse(cols, 4);
-                double vol   = cols.Length > 5 ? Parse(cols, 5) : 0d;
+                double open  = ParseNumber(cols, 1);
+                double high  = ParseNumber(cols, 2);
+                double low   = ParseNumber(cols, 3);
+                double close = ParseNumber(cols, 4);
+                double vol   = cols.Length > 5 ? ParseNumber(cols, 5) : 0d;
 
                 yield return new Bar(date, open, high, low, close, vol);
             }
         }
 
-        private static double Parse(string[] cols, int idx)
+        private static double ParseNumber(string[] cols, int idx)
         {
-            // strip quotes safely; no raw strings used
-            var s = cols[idx].Trim().Replace("\"", string.Empty);
+            // Trim and unquote *safely* (no raw strings)
+            var s = cols[idx].Trim();
+
+            // If field is quoted, remove surrounding quotes and unescape double quotes
+            if (s.Length >= 2 && s[0] == '"' && s[^1] == '"')
+            {
+                s = s.Substring(1, s.Length - 2).Replace("\"\"", "\"");
+            }
 
             if (double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var v))
                 return v;
 
-            // fallback: current culture
+            // Fallback to current culture if needed
             return double.Parse(s, NumberStyles.Any, CultureInfo.CurrentCulture);
         }
     }

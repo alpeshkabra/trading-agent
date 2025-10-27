@@ -76,7 +76,7 @@ Example:
                 rows.Add(new[] { d.ToString("yyyy-MM-dd"), rSpy.ToString("F6"), rStk.ToString("F6"), excess.ToString("F6") });
             }
 
-            var outPath = Path.Combine(outDir, $"Quant_{ticker}_vs_SPY.csv");
+            var outPath = Path.Combine(outDir, $"compare_{ticker}_vs_SPY.csv");
             CsvWriter.Write(outPath, rows);
             Console.WriteLine($"Wrote {outPath} ({rows.Count-1} rows).");
 
