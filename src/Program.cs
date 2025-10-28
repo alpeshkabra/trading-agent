@@ -2,6 +2,7 @@ using Quant.Data;
 using Quant.Models;
 using Quant.Analytics;
 using Quant.Reports;
+using Quant.Portfolio;
 
 namespace Quant;
 
@@ -15,6 +16,7 @@ QuantFrameworks - CSV reader + SPY vs stocks daily return comparison
 Usage:
   dotnet run -- --spy <path-to-SPY.csv> --stocks <CSV1,CSV2,...> [--from YYYY-MM-DD] [--to YYYY-MM-DD]
               [--field Close] [--out reports]
+              [--portfolio TICKER=w,TICKER=w,...] [--portfolio-label NAME]
 
 CSV format (OHLCV daily, header required):
   Date,Open,High,Low,Close,Volume
@@ -38,6 +40,8 @@ Example:
         string outDir = GetArg(args, "out", "reports")!;
         DateOnly? from = ParseDate(GetArg(args, "from"));
         DateOnly? to = ParseDate(GetArg(args, "to"));
+        string? portfolioSpec = GetArg(args, "portfolio");
+        string portfolioLabel = GetArg(args, "portfolio-label", "combined")!;
 
         if (string.IsNullOrWhiteSpace(spyPath) || string.IsNullOrWhiteSpace(stockList))
         {
@@ -54,6 +58,8 @@ Example:
         var spyReturns = Returns.Simple(spySeries).ToList();
 
         var stockPaths = stockList.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var assetReturns = new Dictionary<string, List<ReturnPoint>>();
+
         foreach (var path in stockPaths)
         {
             var bars = new CsvReader(path).ReadBars(from, to).ToList();
@@ -62,7 +68,7 @@ Example:
             var ticker = InferTickerFromPath(path);
             var px = bars.Select(b => new PricePoint(b.Date, PickField(b, field))).ToList();
             var rets = Returns.Simple(px).ToList();
-
+            assetReturns[ticker] = rets;
             var (spyAligned, stockAligned) = Aligner.AlignByDate(spyReturns, rets);
 
             var rows = new List<string[]>();
@@ -78,12 +84,50 @@ Example:
 
             var outPath = Path.Combine(outDir, $"compare_{ticker}_vs_SPY.csv");
             CsvWriter.Write(outPath, rows);
-            Console.WriteLine($"Wrote {outPath} ({rows.Count-1} rows).");
+            Console.WriteLine($"Wrote {outPath} ({rows.Count - 1} rows).");
 
             var avgSpy = spyAligned.Average(p => p.Return);
             var avgStk = stockAligned.Average(p => p.Return);
             var corr = Stats.Correlation(spyAligned.Select(p => p.Return), stockAligned.Select(p => p.Return));
             Console.WriteLine($"Summary {ticker}: meanRet={avgStk:F6}, meanSPY={avgSpy:F6}, corr={corr:F4}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(portfolioSpec) && assetReturns.Count > 0)
+        {
+            var weights = ParseWeights(portfolioSpec); // "AAPL=0.6,MSFT=0.4"
+            if (weights.Count == 0)
+            {
+                Console.WriteLine("WARN: --portfolio provided but no valid weights were parsed.");
+            }
+            else
+            {
+                // Build portfolio return series using WeightedPortfolio
+                var pts = WeightedPortfolio.Build(assetReturns, weights);
+
+                // Write CSV of Date,Return,Wealth
+                var portCsv = Path.Combine(outDir, $"portfolio_{portfolioLabel}.csv");
+                PortfolioCsv.Write(portCsv, pts);
+                Console.WriteLine($"Wrote {portCsv} ({pts.Count} rows).");
+
+                // Optional: compute portfolio metrics and write a summary (CSV + JSON)
+                var portR = pts.Select(p => p.Return).ToList();
+                var wealth = Performance.CumulativeWealth(portR);
+                var (mdd, _, _) = Performance.MaxDrawdown(wealth);
+                var summary = new List<PerformanceSummary>
+                {
+                    new PerformanceSummary {
+                        Label = $"PORT:{portfolioLabel}",
+                        Observations = portR.Count,
+                        TotalReturn = Performance.TotalReturn(portR),
+                        AnnualizedVol = Performance.AnnualizedVolatility(portR),
+                        Sharpe = Performance.Sharpe(portR),
+                        MaxDrawdown = mdd
+                    }
+                };
+
+                SummaryReporter.WriteCsv(Path.Combine(outDir, $"summary_portfolio_{portfolioLabel}.csv"), summary);
+                SummaryReporter.WriteJson(Path.Combine(outDir, $"summary_portfolio_{portfolioLabel}.json"), summary);
+            }
         }
 
         return 0;
@@ -116,4 +160,24 @@ Example:
             _ => b.Close
         };
     }
+
+    private static Dictionary<string, double> ParseWeights(string spec)
+{
+    // spec: "AAPL=0.6,MSFT=0.4"
+    var dict = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+    foreach (var part in spec.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+    {
+        var kv = part.Split('=', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (kv.Length != 2) continue;
+        var k = kv[0].ToUpperInvariant();
+        if (double.TryParse(kv[1], System.Globalization.NumberStyles.Any,
+                            System.Globalization.CultureInfo.InvariantCulture, out var w))
+        {
+            dict[k] = w;
+        }
+    }
+    return dict;
 }
+
+}
+
