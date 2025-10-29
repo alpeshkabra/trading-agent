@@ -47,3 +47,22 @@ Adds:
   - `Trade`, `PositionSnapshot`
   - `PnlEngine.BuildDailySeries(trades, prices, initialCash, cashFlows)` → List<DailyRecord>
 - `Quant.Reports.DailyRecordCsv` → write Date,Value,ExternalFlow
+
+
+# Feature: Risk Metrics (Volatility, Downside Deviation, VaR/ES) + Rolling Windows
+
+Adds:
+- `Quant.Analytics.RiskMetrics` with:
+  - `Volatility(returns)` sample std dev
+  - `DownsideDeviation(returns, mar=0)`
+  - `VaR(returns, alpha)` -> **positive loss**
+  - `CVar(returns, alpha)` -> Expected Shortfall (positive loss)
+  - `Rolling(series, window, alpha)` -> `List<RiskSnapshot>` per window end
+- `Quant.Models.RiskSnapshot`
+- `Quant.Reports.RiskCsv`
+
+Example:
+```csharp
+var snaps = RiskMetrics.Rolling(spyReturns, 252, 0.05);
+RiskCsv.Write(Path.Combine("reports", "risk_spy_252.csv"), snaps);
+```
