@@ -34,3 +34,16 @@ Also prints mean returns and correlation to the console.
 
 dotnet sln Quant.sln add .\tests\Quant.Tests\Quant.Tests.csproj
 dotnet test
+
+
+# Feature: Cash Flows (TWR/MWR/IRR) + Trade Ledger → Daily Portfolio
+
+Adds:
+- `Quant.Models.CashFlow`, `Quant.Models.DailyRecord`
+- `Quant.Analytics.PerformancePlus`:
+  - `TimeWeightedReturns(records)` → daily TWR list + linked total
+  - `IRR(flows, terminalDate, terminalValue)` → annualized MWR/IRR (365-day basis)
+- `Quant.Ledger`:
+  - `Trade`, `PositionSnapshot`
+  - `PnlEngine.BuildDailySeries(trades, prices, initialCash, cashFlows)` → List<DailyRecord>
+- `Quant.Reports.DailyRecordCsv` → write Date,Value,ExternalFlow
