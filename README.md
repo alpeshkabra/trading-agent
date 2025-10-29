@@ -168,3 +168,33 @@ Max Drawdown   : 0
 ```bash
 dotnet test
 ```
+
+### New: Stop-Loss / Take-Profit (optional)
+
+You can enable hard exits as a fraction of entry price:
+
+- `StopLossPct` — e.g., `0.05` means exit if price falls 5% below entry.
+- `TakeProfitPct` — e.g., `0.10` means exit if price rises 10% above entry.
+
+**Config example** (`examples/configs/sma.json`):
+```json
+{
+  "DataPath": "examples/data/prices.csv",
+  "Symbol": "AAPL",
+  "Start": "2024-01-01",
+  "End": "2024-01-10",
+  "StartingCash": 100000,
+  "Fast": 2,
+  "Slow": 3,
+  "StopLossPct": 0.05,
+  "TakeProfitPct": 0.10,
+  "OutputPath": "out/summary.csv"
+}
+````
+
+**Run**
+
+```bash
+
+dotnet run --project src -- backtest --config examples/configs/sma.json
+```

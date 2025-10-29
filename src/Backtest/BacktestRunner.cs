@@ -18,7 +18,7 @@ namespace QuantFrameworks.Backtest
         public async Task<SummaryReport> RunAsync(CancellationToken ct = default)
         {
             var feed = new CsvMarketDataFeed(_cfg.DataPath);
-            var strat = new SmaCrossStrategy(_cfg.Symbol, _cfg.Fast, _cfg.Slow);
+            var strat = new SmaCrossStrategy(_cfg.Symbol, _cfg.Fast, _cfg.Slow, _cfg.StopLossPct, _cfg.TakeProfitPct);
             var broker = new SimpleBrokerSimulator();
             var pf = new PortfolioState(_cfg.StartingCash);
 
@@ -47,10 +47,7 @@ namespace QuantFrameworks.Backtest
                 { _cfg.Symbol, prevBar?.Close ?? 0m }
             };
 
-            var snap = new IO.PortfolioSnapshot
-            {
-                Cash = pf.Cash
-            };
+            var snap = new IO.PortfolioSnapshot { Cash = pf.Cash };
             foreach (var kv in pf.Positions)
             {
                 snap.Positions[kv.Key] = new IO.PortfolioSnapshot.Position
@@ -62,8 +59,7 @@ namespace QuantFrameworks.Backtest
                 };
             }
 
-            var rpt = SummaryReporter.FromSnapshot(snap, prices);
-            return rpt;
+            return SummaryReporter.FromSnapshot(snap, prices);
         }
     }
 }

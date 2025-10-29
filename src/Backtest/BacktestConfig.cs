@@ -12,5 +12,7 @@ namespace QuantFrameworks.Backtest
         public int Fast { get; init; } = 5;
         public int Slow { get; init; } = 20;
         public string OutputPath { get; init; } = "out/summary.csv";
+        public decimal StopLossPct { get; init; } = 0m;
+        public decimal TakeProfitPct { get; init; } = 0m;
     }
 }
