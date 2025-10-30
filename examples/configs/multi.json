@@ -1,0 +1,21 @@
+{
+  "Symbols": ["AAPL", "MSFT"],
+  "SymbolData": {
+    "AAPL": "examples/data/AAPL.csv",
+    "MSFT": "examples/data/MSFT.csv"
+  },
+  "Start": "2024-01-01",
+  "End": "2024-01-05",
+  "StartingCash": 100000,
+  "Fast": 2,
+  "Slow": 3,
+  "StopLossPct": 0.02,
+  "TakeProfitPct": 0.05,
+  "CommissionPerOrder": 0.50,
+  "PercentFee": 0.001,
+  "MinFee": 0.10,
+  "SlippageBps": 25,
+  "OutputPath": "out/summary.csv",
+  "DailyNavCsv": "out/daily_nav.csv",
+  "RunJson": "out/run.json"
+}
