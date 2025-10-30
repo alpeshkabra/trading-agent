@@ -1,0 +1,10 @@
+{
+  "DataPath": "examples/data/prices.csv",
+  "Symbol": "AAPL",
+  "Start": "2024-01-01",
+  "End": "2024-01-10",
+  "StartingCash": 100000,
+  "Fast": 2,
+  "Slow": 3,
+  "OutputPath": "out/summary.csv"
+}
