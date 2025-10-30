@@ -16,30 +16,65 @@ public static class Program
 {
     private static void Help()
     {
-        Console.WriteLine(@"
-QuantFrameworks - CSV reader + SPY vs stocks daily return comparison
-Also includes an end-to-end SMA backtest engine.
+    Console.WriteLine(@"
+                QuantFrameworks - CSV reader + SPY vs stocks daily return comparison
+                Also includes an end-to-end SMA backtest engine (single or multi-asset), with
+                position sizing (Fixed-$ / %NAV), lot rounding and Max Gross Exposure guard.
 
-Usage:
+                Usage:
 
-  # Existing SPY vs stocks comparison
-  dotnet run -- --spy <path-to-SPY.csv> --stocks <CSV1,CSV2,...> [--from YYYY-MM-DD] [--to YYYY-MM-DD]
-              [--field Close] [--out reports]
-              [--portfolio TICKER=w,TICKER=w,...] [--portfolio-label NAME]
+                # Existing SPY vs stocks comparison
+                dotnet run -- --spy <path-to-SPY.csv> --stocks <CSV1,CSV2,...> [--from YYYY-MM-DD] [--to YYYY-MM-DD]
+                            [--field Close] [--out reports]
+                            [--portfolio TICKER=w,TICKER=w,...] [--portfolio-label NAME]
 
-  # New backtest command (reads JSON config)
-  dotnet run -- backtest --config <path-to-config.json>
+                # New backtest command (reads JSON config)
+                dotnet run -- backtest --config <path-to-config.json>
 
-CSV format (OHLCV daily, header required):
-  Date,Open,High,Low,Close,Volume
+                CSV format (OHLCV daily, header required):
+                Date,Open,High,Low,Close,Volume
 
-Example (SPY compare):
-  dotnet run -- --spy data/SPY.csv --stocks data/AAPL.csv,data/MSFT.csv --from 2018-01-01 --out reports
+                Example (SPY compare):
+                dotnet run -- --spy data/SPY.csv --stocks data/AAPL.csv,data/MSFT.csv --from 2018-01-01 --out reports
 
-Example (Backtest):
-  dotnet run -- backtest --config examples/configs/sma.json
-");
-    }
+                Example (Single-asset backtest):
+                dotnet run -- backtest --config examples/configs/sma.json
+
+                Example (Multi-asset backtest with sizing & exposure):
+                dotnet run -- backtest --config examples/configs/multi.json
+
+                Key backtest config fields:
+                # Symbols & data
+                Symbol: ""AAPL""
+                DataPath: ""examples/data/AAPL.csv""
+                Symbols: [""AAPL"", ""MSFT""]
+                SymbolData: { ""AAPL"": ""examples/data/AAPL.csv"", ""MSFT"": ""examples/data/MSFT.csv"" }
+
+                # Strategy
+                Fast: 2
+                Slow: 3
+                StopLossPct: 0.02
+                TakeProfitPct: 0.05
+
+                # Costs & slippage
+                CommissionPerOrder: 0.50
+                PercentFee: 0.001
+                MinFee: 0.10
+                SlippageBps: 25
+
+                # NEW: Position sizing & exposure
+                SizingMode: ""FixedDollar"" | ""PercentNav""
+                DollarsPerTrade: 10000
+                PercentNavPerTrade: 0.05
+                LotSize: 10
+                MaxGrossExposurePct: 1.5
+
+                Outputs:
+                - out/summary.csv
+                - out/daily_nav.csv
+                - out/run.json
+                ");
+                }
 
     public static int Main(string[] args)
     {
@@ -197,6 +232,17 @@ Example (Backtest):
                     Console.WriteLine($"  Percent Fee     : {cfg.PercentFee:P}");
                     if (cfg.MinFee > 0) Console.WriteLine($"  Min Fee         : {cfg.MinFee}");
                 }
+
+                if (!string.IsNullOrWhiteSpace(cfg.SizingMode))
+                    Console.WriteLine($"  Sizing Mode   : {cfg.SizingMode}");
+                if (cfg.DollarsPerTrade > 0)
+                    Console.WriteLine($"  $/Trade       : {cfg.DollarsPerTrade}");
+                if (cfg.PercentNavPerTrade > 0)
+                    Console.WriteLine($"  %NAV/Trade    : {cfg.PercentNavPerTrade:P}");
+                if (cfg.LotSize > 1)
+                    Console.WriteLine($"  Lot Size      : {cfg.LotSize}");
+                if (cfg.MaxGrossExposurePct > 0)
+                    Console.WriteLine($"  Max Gross Exp.: {cfg.MaxGrossExposurePct:P0}");
 
                 // Always use the multi-asset runner. It supports single-symbol too.
                 var runner = new QuantFrameworks.Backtest.MultiAssetBacktestRunner(cfg);

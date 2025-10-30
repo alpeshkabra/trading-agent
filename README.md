@@ -190,3 +190,37 @@ Max Drawdown   : 3.20%
 ```bash
 dotnet test
 ```
+
+### 🧮 Feature: Position Sizing (+ Max Gross Exposure)
+
+**What:** Convert strategy signals into real quantities using either **Fixed Dollar per trade** or **Percent of NAV**, optionally rounded to **lot sizes**, and capped by **Max Gross Exposure**.
+
+**New config fields:**
+
+```json
+{
+  "SizingMode": "FixedDollar",        // or "PercentNav"
+  "DollarsPerTrade": 10000,          // used in FixedDollar
+  "PercentNavPerTrade": 0.05,        // 5% of NAV per trade (PercentNav)
+  "LotSize": 1,                      // quantities are multiples of this
+  "MaxGrossExposurePct": 2.0         // 200% gross exposure cap (optional)
+}
+```
+
+**Example (multi-asset):** `examples/configs/multi.json`
+
+```json
+{
+  "...": "...",
+  "SizingMode": "PercentNav",
+  "PercentNavPerTrade": 0.05,
+  "LotSize": 10,
+  "MaxGrossExposurePct": 1.5
+}
+```
+
+**Run:**
+
+```bash
+dotnet run --project src -- backtest --config examples/configs/multi.json
+```
