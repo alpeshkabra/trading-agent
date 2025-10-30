@@ -163,45 +163,73 @@ Example (Backtest):
     // New: Backtester
     // ---------------
     private static int RunBacktest(string[] args)
-    {
-        string? cfgPath = GetArg(args, "config");
-        if (string.IsNullOrWhiteSpace(cfgPath))
         {
-            Console.Error.WriteLine("ERROR: backtest requires --config <path-to-config.json>");
-            return 2;
-        }
-
-        try
-        {
-            cfgPath = ResolveConfigPath(cfgPath);
-            var json = File.ReadAllText(cfgPath);
-            var cfg = JsonSerializer.Deserialize<BacktestConfig>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
-                      ?? throw new InvalidOperationException("Invalid config JSON.");
-
-            Console.WriteLine("Backtest config:");
-            Console.WriteLine($"  Symbol        : {cfg.Symbol}");
-            Console.WriteLine($"  Fast/Slow SMA : {cfg.Fast}/{cfg.Slow}");
-            if (cfg.StopLossPct > 0 || cfg.TakeProfitPct > 0)
+            string? cfgPath = GetArg(args, "config");
+            if (string.IsNullOrWhiteSpace(cfgPath))
             {
-                Console.WriteLine($"  StopLossPct   : {cfg.StopLossPct:P}");
-                Console.WriteLine($"  TakeProfitPct : {cfg.TakeProfitPct:P}");
+                Console.Error.WriteLine("ERROR: backtest requires --config <path-to-config.json>");
+                return 2;
             }
 
-            var runner = new BacktestRunner(cfg);
-            var rpt = runner.RunAsync().GetAwaiter().GetResult();
+            try
+            {
+                cfgPath = ResolveConfigPath(cfgPath);
+                var json = File.ReadAllText(cfgPath);
+                var cfg = System.Text.Json.JsonSerializer.Deserialize<QuantFrameworks.Backtest.BacktestConfig>(
+                    json, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                    ?? throw new InvalidOperationException("Invalid config JSON.");
 
-            QFReporting.SummaryReporterWriter.WriteConsole(rpt);
-            Directory.CreateDirectory(Path.GetDirectoryName(cfg.OutputPath) ?? ".");
-            QFReporting.SummaryReporterWriter.WriteCsv(rpt, cfg.OutputPath);
-            Console.WriteLine($"\nSaved: {Path.GetFullPath(cfg.OutputPath)}");
-            return 0;
+                Console.WriteLine("Backtest config:");
+                if (!string.IsNullOrWhiteSpace(cfg.Symbol))
+                    Console.WriteLine($"  Symbol        : {cfg.Symbol}");
+                if (cfg.Symbols != null && cfg.Symbols.Count > 0)
+                    Console.WriteLine("  Symbols       : " + string.Join(",", cfg.Symbols));
+                Console.WriteLine($"  Fast/Slow SMA : {cfg.Fast}/{cfg.Slow}");
+                if (cfg.StopLossPct > 0 || cfg.TakeProfitPct > 0)
+                {
+                    Console.WriteLine($"  StopLossPct   : {cfg.StopLossPct:P}");
+                    Console.WriteLine($"  TakeProfitPct : {cfg.TakeProfitPct:P}");
+                }
+                if (cfg.SlippageBps > 0) Console.WriteLine($"  Slippage (bps): {cfg.SlippageBps}");
+                if (cfg.CommissionPerOrder > 0 || cfg.PercentFee > 0 || cfg.MinFee > 0)
+                {
+                    Console.WriteLine($"  Commission/Fill : {cfg.CommissionPerOrder}");
+                    Console.WriteLine($"  Percent Fee     : {cfg.PercentFee:P}");
+                    if (cfg.MinFee > 0) Console.WriteLine($"  Min Fee         : {cfg.MinFee}");
+                }
+
+                // Always use the multi-asset runner. It supports single-symbol too.
+                var runner = new QuantFrameworks.Backtest.MultiAssetBacktestRunner(cfg);
+
+                // Synchronous wait, so Program.Main stays int-returning.
+                var result = runner.RunAsync().GetAwaiter().GetResult();
+                var summary = result.summary;
+                var run = result.run;
+
+                QuantFrameworks.Reporting.SummaryReporterWriter.WriteConsole(summary);
+                Directory.CreateDirectory(Path.GetDirectoryName(cfg.OutputPath) ?? ".");
+                QuantFrameworks.Reporting.SummaryReporterWriter.WriteCsv(summary, cfg.OutputPath);
+
+                Directory.CreateDirectory(Path.GetDirectoryName(cfg.DailyNavCsv) ?? ".");
+                QuantFrameworks.Reporting.RunReportWriter.WriteDailyCsv(run, cfg.DailyNavCsv);
+
+                Directory.CreateDirectory(Path.GetDirectoryName(cfg.RunJson) ?? ".");
+                QuantFrameworks.Reporting.RunReportWriter.WriteJson(run, cfg.RunJson);
+
+                Console.WriteLine($"\nSaved:");
+                Console.WriteLine($"  {Path.GetFullPath(cfg.OutputPath)}");
+                Console.WriteLine($"  {Path.GetFullPath(cfg.DailyNavCsv)}");
+                Console.WriteLine($"  {Path.GetFullPath(cfg.RunJson)}");
+
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Backtest failed: " + ex.Message);
+                return 1;
+            }
         }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine("Backtest failed: " + ex.Message);
-            return 1;
-        }
-    }
+
 
     // --------
     // Helpers
