@@ -29,5 +29,12 @@ namespace QuantFrameworks.Backtest
         public string OutputPath { get; init; } = "out/summary.csv";
         public string DailyNavCsv { get; init; } = "out/daily_nav.csv";
         public string RunJson { get; init; } = "out/run.json";
+
+        public string? SizingMode { get; init; } = "FixedDollar";
+        public decimal DollarsPerTrade { get; init; } = 10_000m;
+        public decimal PercentNavPerTrade { get; init; } = 0m;
+        public int LotSize { get; init; } = 1;
+        public decimal MaxGrossExposurePct { get; init; } = 0m;
+
     }
 }

@@ -9,6 +9,8 @@ using QuantFrameworks.Portfolio;
 using QuantFrameworks.Reporting;
 using QuantFrameworks.Strategy;
 using QuantFrameworks.Costs;
+using QuantFrameworks.Sizing;
+
 
 namespace QuantFrameworks.Backtest
 {
@@ -25,7 +27,7 @@ namespace QuantFrameworks.Backtest
             IEnumerable<Bar> merged;
             if (_cfg.SymbolData.Count > 0)
             {
-                var feed = new MultiCsvMarketDataFeed(new Dictionary<string,string>(_cfg.SymbolData, StringComparer.OrdinalIgnoreCase));
+                var feed = new MultiCsvMarketDataFeed(new Dictionary<string, string>(_cfg.SymbolData, StringComparer.OrdinalIgnoreCase));
                 merged = feed.ReadMerged(_cfg.Start, _cfg.End);
             }
             else
