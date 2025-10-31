@@ -274,4 +274,17 @@ dotnet run --project src -- optimize --config examples/configs/optimize.json
 * `out/optimize/top10.csv` (best by metric)
 * `out/optimize/wfo_results.csv` / `.json` (only if WFO enabled)
 
+### 📊 HTML & Markdown Tear Sheet Reports
+
+Generate a polished, self-contained HTML tear sheet (plus optional Markdown) from any backtest run.
+
+**Run**
+```bash
+dotnet run --project src -- report \
+  --summary out/summary.csv \
+  --run out/run.json \
+  --out out/tearsheet.html \
+  --md out/tearsheet.md \
+  --title "My Strategy"
+
 Total tests  - 39

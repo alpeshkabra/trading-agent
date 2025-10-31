@@ -5,11 +5,14 @@ using Quant.Reports;
 using Quant.Portfolio;
 
 // New usings for backtest MVP
+using System.Globalization;
 using System.Text.Json;
 using QuantFrameworks.Backtest;
 using QuantFrameworks.Optimize; // NEW: optimize feature
-using PortfolioSummaryReporter = Quant.Reports.SummaryReporter;
+using PortfolioSummaryReporter = Quant.Reports.SummaryReporter; // alias to avoid ambiguity
 using QFReporting = QuantFrameworks.Reporting;
+using QuantFrameworks.Reporting;                 // for SummaryReporterWriter / RunReportWriter
+using QuantFrameworks.Reporting.Tearsheet;       // for TearsheetFromRun / TearsheetWriter
 
 namespace Quant;
 
@@ -34,6 +37,9 @@ public static class Program
 
                 # NEW: Parameter Sweep & Walk-Forward Optimization
                 dotnet run -- optimize --config examples/configs/optimize.json
+
+                # NEW: Tear Sheet report (HTML/Markdown)
+                dotnet run -- report --summary out/summary.csv --run out/run.json --out out/tearsheet.html --md out/tearsheet.md
 
                 CSV format (OHLCV daily, header required):
                 Date,Open,High,Low,Close,Volume
@@ -73,7 +79,7 @@ public static class Program
                 SizingMode: ""FixedDollar"" | ""PercentNav""
                 DollarsPerTrade: 10000
                 PercentNavPerTrade: 0.05
-                LotSize: 10
+                Lot Size: 10
                 MaxGrossExposurePct: 1.5
 
                 Outputs:
@@ -106,6 +112,12 @@ public static class Program
         if (string.Equals(args[0], "backtest", StringComparison.OrdinalIgnoreCase))
         {
             return RunBacktest(args);
+        }
+
+        // Subcommand: "report" (NEW)
+        if (string.Equals(args[0], "report", StringComparison.OrdinalIgnoreCase))
+        {
+            return RunReport(args);
         }
 
         // Default: existing SPY vs stocks flow
@@ -204,8 +216,9 @@ public static class Program
                     }
                 };
 
-                SummaryReporter.WriteCsv(Path.Combine(outDir, $"summary_portfolio_{portfolioLabel}.csv"), summary);
-                SummaryReporter.WriteJson(Path.Combine(outDir, $"summary_portfolio_{portfolioLabel}.json"), summary);
+                // Use the alias to avoid ambiguity
+                PortfolioSummaryReporter.WriteCsv(Path.Combine(outDir, $"summary_portfolio_{portfolioLabel}.csv"), summary);
+                PortfolioSummaryReporter.WriteJson(Path.Combine(outDir, $"summary_portfolio_{portfolioLabel}.json"), summary);
             }
         }
 
@@ -341,6 +354,49 @@ public static class Program
         catch (Exception ex)
         {
             Console.Error.WriteLine("Optimize failed: " + ex.Message);
+            return 1;
+        }
+    }
+
+    // -----------------------------
+    // NEW: Tear Sheet report command
+    // -----------------------------
+    private static int RunReport(string[] args)
+    {
+        // Args: --summary <path to summary csv/json> --run <path to run.json> --out <html path>
+        // Optional: --md <md path> --title "My Tear Sheet"
+        string? summaryPath = GetArg(args, "summary");
+        string? runPath = GetArg(args, "run");
+        string? outHtml = GetArg(args, "out");
+        string? outMd = GetArg(args, "md");
+        string title = GetArg(args, "title", "Backtest Tear Sheet") ?? "Backtest Tear Sheet";
+
+        if (string.IsNullOrWhiteSpace(summaryPath) || string.IsNullOrWhiteSpace(runPath) || string.IsNullOrWhiteSpace(outHtml))
+        {
+            Console.Error.WriteLine("ERROR: report requires --summary <path> --run <path> --out <out.html>");
+            return 2;
+        }
+
+        try
+        {
+            // Load previously saved summary + run
+            var run     = ReportLoaders.LoadRunJson(runPath);
+            var summary = ReportLoaders.LoadSummaryFlexible(summaryPath, run.EndingNAV);
+
+            // Build tear sheet model and write outputs
+            var model = TearsheetFromRun.Build(summary, run, title);
+            TearsheetWriter.WriteHtml(model, outHtml);
+            if (!string.IsNullOrWhiteSpace(outMd))
+                TearsheetWriter.WriteMarkdown(model, outMd);
+
+            Console.WriteLine($"Saved tear sheet: {Path.GetFullPath(outHtml)}");
+            if (!string.IsNullOrWhiteSpace(outMd))
+                Console.WriteLine($"Saved markdown  : {Path.GetFullPath(outMd)}");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("Report failed: " + ex.Message);
             return 1;
         }
     }
