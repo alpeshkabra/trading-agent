@@ -7,6 +7,7 @@ using Quant.Portfolio;
 // New usings for backtest MVP
 using System.Text.Json;
 using QuantFrameworks.Backtest;
+using QuantFrameworks.Optimize; // NEW: optimize feature
 using PortfolioSummaryReporter = Quant.Reports.SummaryReporter;
 using QFReporting = QuantFrameworks.Reporting;
 
@@ -28,8 +29,11 @@ public static class Program
                             [--field Close] [--out reports]
                             [--portfolio TICKER=w,TICKER=w,...] [--portfolio-label NAME]
 
-                # New backtest command (reads JSON config)
+                # Backtest command (reads JSON config)
                 dotnet run -- backtest --config <path-to-config.json>
+
+                # NEW: Parameter Sweep & Walk-Forward Optimization
+                dotnet run -- optimize --config examples/configs/optimize.json
 
                 CSV format (OHLCV daily, header required):
                 Date,Open,High,Low,Close,Volume
@@ -42,6 +46,9 @@ public static class Program
 
                 Example (Multi-asset backtest with sizing & exposure):
                 dotnet run -- backtest --config examples/configs/multi.json
+
+                Example (Optimize grid + WFO):
+                dotnet run -- optimize --config examples/configs/optimize.json
 
                 Key backtest config fields:
                 # Symbols & data
@@ -62,7 +69,7 @@ public static class Program
                 MinFee: 0.10
                 SlippageBps: 25
 
-                # NEW: Position sizing & exposure
+                # Position sizing & exposure
                 SizingMode: ""FixedDollar"" | ""PercentNav""
                 DollarsPerTrade: 10000
                 PercentNavPerTrade: 0.05
@@ -73,6 +80,11 @@ public static class Program
                 - out/summary.csv
                 - out/daily_nav.csv
                 - out/run.json
+
+                Optimize outputs (when using `optimize`):
+                - out/optimize/sweep_results.csv / .json
+                - out/optimize/topN.csv
+                - out/optimize/wfo_results.csv / .json
                 ");
                 }
 
@@ -82,6 +94,12 @@ public static class Program
         {
             Help();
             return 0;
+        }
+
+        // Subcommand: "optimize" (NEW)
+        if (string.Equals(args[0], "optimize", StringComparison.OrdinalIgnoreCase))
+        {
+            return RunOptimize(args);
         }
 
         // Subcommand: "backtest"
@@ -276,6 +294,56 @@ public static class Program
             }
         }
 
+    // -------------------------
+    // NEW: Optimize (grid + WFO)
+    // -------------------------
+    private static int RunOptimize(string[] args)
+    {
+        string? cfgPath = GetArg(args, "config");
+        if (string.IsNullOrWhiteSpace(cfgPath))
+        {
+            Console.Error.WriteLine("ERROR: optimize requires --config <path-to-optimize.json>");
+            return 2;
+        }
+
+        try
+        {
+            cfgPath = ResolveConfigPath(cfgPath);
+            var json = File.ReadAllText(cfgPath);
+            var cfg = System.Text.Json.JsonSerializer.Deserialize<QuantFrameworks.Optimize.OptimizerConfig>(
+                json, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                ?? throw new InvalidOperationException("Invalid optimize config JSON.");
+
+            Console.WriteLine("Optimize config:");
+            Console.WriteLine($"  Params        : {string.Join(", ", cfg.Parameters.Select(p => p.Name))}");
+            Console.WriteLine($"  Folds (WFO)   : {cfg.Wfo?.KFolds ?? 0}");
+            Console.WriteLine($"  Metric        : {cfg.TargetMetric}");
+            Console.WriteLine($"  Max Parallel  : {cfg.MaxDegreeOfParallelism}");
+
+            var sweep = new QuantFrameworks.Optimize.SweepRunner(cfg);
+            var sweepResult = sweep.Run();
+
+            QuantFrameworks.Optimize.OptimizeCsvWriter.WriteSweep(sweepResult, cfg.OutputDir);
+            QuantFrameworks.Optimize.OptimizeJsonWriter.WriteSweep(sweepResult, cfg.OutputDir);
+            QuantFrameworks.Optimize.OptimizeCsvWriter.WriteTopN(sweepResult, cfg.OutputDir, cfg.TopN);
+
+            if (cfg.Wfo is not null && cfg.Wfo.KFolds > 0)
+            {
+                var wfo = new QuantFrameworks.Optimize.WfoRunner(cfg);
+                var wfoResult = wfo.Run();
+                QuantFrameworks.Optimize.OptimizeCsvWriter.WriteWfo(wfoResult, cfg.OutputDir);
+                QuantFrameworks.Optimize.OptimizeJsonWriter.WriteWfo(wfoResult, cfg.OutputDir);
+            }
+
+            Console.WriteLine($"\nSaved reports under: {Path.GetFullPath(cfg.OutputDir)}");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("Optimize failed: " + ex.Message);
+            return 1;
+        }
+    }
 
     // --------
     // Helpers

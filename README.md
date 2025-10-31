@@ -224,3 +224,54 @@ dotnet test
 ```bash
 dotnet run --project src -- backtest --config examples/configs/multi.json
 ```
+
+## 🧪 Parameter Sweep & Walk-Forward Optimization
+
+Tune strategy parameters over a grid and validate with time-based splits.
+
+### Run
+
+```bash
+dotnet run --project src -- optimize --config examples/configs/optimize.json
+```
+
+### Example Config (`examples/configs/optimize.json`)
+
+```json
+{
+  "BaseBacktest": {
+    "Symbols": ["AAPL", "MSFT"],
+    "SymbolData": {
+      "AAPL": "examples/data/AAPL.csv",
+      "MSFT": "examples/data/MSFT.csv"
+    },
+    "Start": "2024-01-01",
+    "End": "2024-01-31",
+    "StartingCash": 100000,
+    "SlippageBps": 25,
+    "CommissionPerOrder": 0.5,
+    "PercentFee": 0.001,
+    "MinFee": 0.1,
+    "SizingMode": "PercentNav",
+    "PercentNavPerTrade": 0.05,
+    "LotSize": 10
+  },
+  "Parameters": [
+    { "Name": "Fast", "From": 2, "To": 6, "Step": 2 },
+    { "Name": "Slow", "Values": [ 10, 15, 20 ] }
+  ],
+  "TargetMetric": "Sharpe",               // or "NAV", "TotalReturn", etc.
+  "MaxDegreeOfParallelism": 4,
+  "TopN": 10,
+  "OutputDir": "out/optimize",
+  "Wfo": { "KFolds": 3, "TrainRatio": 0.7 }
+}
+```
+
+### Outputs
+
+* `out/optimize/sweep_results.csv` / `.json` (row per param-set)
+* `out/optimize/top10.csv` (best by metric)
+* `out/optimize/wfo_results.csv` / `.json` (only if WFO enabled)
+
+Total tests  - 39
