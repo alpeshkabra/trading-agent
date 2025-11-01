@@ -1,4 +1,3 @@
-using Quant.Data;
 using Quant.Models;
 
 namespace Quant.Tests;

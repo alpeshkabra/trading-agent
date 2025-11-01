@@ -1,10 +1,9 @@
-using Quant.Data;
 using Quant.Models;
 using Quant.Analytics;
 using Quant.Reports;
 using Quant.Portfolio;
 
-// New usings for backtest MVP
+// New usings for backtest/optimize/report
 using System.Globalization;
 using System.Text.Json;
 using QuantFrameworks.Backtest;
@@ -20,14 +19,14 @@ public static class Program
 {
     private static void Help()
     {
-    Console.WriteLine(@"
+        Console.WriteLine(@"
                 QuantFrameworks - CSV reader + SPY vs stocks daily return comparison
                 Also includes an end-to-end SMA backtest engine (single or multi-asset), with
                 position sizing (Fixed-$ / %NAV), lot rounding and Max Gross Exposure guard.
 
                 Usage:
 
-                # Existing SPY vs stocks comparison
+                # Existing SPY vs stocks comparison (default)
                 dotnet run -- --spy <path-to-SPY.csv> --stocks <CSV1,CSV2,...> [--from YYYY-MM-DD] [--to YYYY-MM-DD]
                             [--field Close] [--out reports]
                             [--portfolio TICKER=w,TICKER=w,...] [--portfolio-label NAME]
@@ -40,6 +39,9 @@ public static class Program
 
                 # NEW: Tear Sheet report (HTML/Markdown)
                 dotnet run -- report --summary out/summary.csv --run out/run.json --out out/tearsheet.html --md out/tearsheet.md
+
+                # NEW: RiskGuard - Pre-trade risk checks & position sizing
+                dotnet run -- risk-check --orders ./data/orders.csv --config ./config/risk.json [--prices ./data/prices.csv] --out ./out
 
                 CSV format (OHLCV daily, header required):
                 Date,Open,High,Low,Close,Volume
@@ -55,6 +57,9 @@ public static class Program
 
                 Example (Optimize grid + WFO):
                 dotnet run -- optimize --config examples/configs/optimize.json
+
+                Example (RiskGuard):
+                dotnet run -- risk-check --orders ./data/orders.csv --config ./config/risk.json --out ./out
 
                 Key backtest config fields:
                 # Symbols & data
@@ -92,7 +97,7 @@ public static class Program
                 - out/optimize/topN.csv
                 - out/optimize/wfo_results.csv / .json
                 ");
-                }
+    }
 
     public static int Main(string[] args)
     {
@@ -102,22 +107,24 @@ public static class Program
             return 0;
         }
 
-        // Subcommand: "optimize" (NEW)
+        // Subcommand: "optimize"
         if (string.Equals(args[0], "optimize", StringComparison.OrdinalIgnoreCase))
-        {
             return RunOptimize(args);
-        }
 
         // Subcommand: "backtest"
         if (string.Equals(args[0], "backtest", StringComparison.OrdinalIgnoreCase))
-        {
             return RunBacktest(args);
-        }
 
-        // Subcommand: "report" (NEW)
+        // Subcommand: "report"
         if (string.Equals(args[0], "report", StringComparison.OrdinalIgnoreCase))
-        {
             return RunReport(args);
+
+        // Subcommand: "risk-check" (no System.CommandLine dependency)
+        if (string.Equals(args[0], "risk-check", StringComparison.OrdinalIgnoreCase) ||
+            // also allow calling without explicit subcommand if flags are present
+            (args.Contains("--orders") && args.Contains("--config") && args.Contains("--out")))
+        {
+            return QuantFrameworks.Risk.RiskEntry.Run(args);
         }
 
         // Default: existing SPY vs stocks flow
@@ -225,91 +232,84 @@ public static class Program
         return 0;
     }
 
-    // ---------------
-    // New: Backtester
-    // ---------------
+    // --------------- Backtester ---------------
     private static int RunBacktest(string[] args)
+    {
+        string? cfgPath = GetArg(args, "config");
+        if (string.IsNullOrWhiteSpace(cfgPath))
         {
-            string? cfgPath = GetArg(args, "config");
-            if (string.IsNullOrWhiteSpace(cfgPath))
-            {
-                Console.Error.WriteLine("ERROR: backtest requires --config <path-to-config.json>");
-                return 2;
-            }
-
-            try
-            {
-                cfgPath = ResolveConfigPath(cfgPath);
-                var json = File.ReadAllText(cfgPath);
-                var cfg = System.Text.Json.JsonSerializer.Deserialize<QuantFrameworks.Backtest.BacktestConfig>(
-                    json, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true })
-                    ?? throw new InvalidOperationException("Invalid config JSON.");
-
-                Console.WriteLine("Backtest config:");
-                if (!string.IsNullOrWhiteSpace(cfg.Symbol))
-                    Console.WriteLine($"  Symbol        : {cfg.Symbol}");
-                if (cfg.Symbols != null && cfg.Symbols.Count > 0)
-                    Console.WriteLine("  Symbols       : " + string.Join(",", cfg.Symbols));
-                Console.WriteLine($"  Fast/Slow SMA : {cfg.Fast}/{cfg.Slow}");
-                if (cfg.StopLossPct > 0 || cfg.TakeProfitPct > 0)
-                {
-                    Console.WriteLine($"  StopLossPct   : {cfg.StopLossPct:P}");
-                    Console.WriteLine($"  TakeProfitPct : {cfg.TakeProfitPct:P}");
-                }
-                if (cfg.SlippageBps > 0) Console.WriteLine($"  Slippage (bps): {cfg.SlippageBps}");
-                if (cfg.CommissionPerOrder > 0 || cfg.PercentFee > 0 || cfg.MinFee > 0)
-                {
-                    Console.WriteLine($"  Commission/Fill : {cfg.CommissionPerOrder}");
-                    Console.WriteLine($"  Percent Fee     : {cfg.PercentFee:P}");
-                    if (cfg.MinFee > 0) Console.WriteLine($"  Min Fee         : {cfg.MinFee}");
-                }
-
-                if (!string.IsNullOrWhiteSpace(cfg.SizingMode))
-                    Console.WriteLine($"  Sizing Mode   : {cfg.SizingMode}");
-                if (cfg.DollarsPerTrade > 0)
-                    Console.WriteLine($"  $/Trade       : {cfg.DollarsPerTrade}");
-                if (cfg.PercentNavPerTrade > 0)
-                    Console.WriteLine($"  %NAV/Trade    : {cfg.PercentNavPerTrade:P}");
-                if (cfg.LotSize > 1)
-                    Console.WriteLine($"  Lot Size      : {cfg.LotSize}");
-                if (cfg.MaxGrossExposurePct > 0)
-                    Console.WriteLine($"  Max Gross Exp.: {cfg.MaxGrossExposurePct:P0}");
-
-                // Always use the multi-asset runner. It supports single-symbol too.
-                var runner = new QuantFrameworks.Backtest.MultiAssetBacktestRunner(cfg);
-
-                // Synchronous wait, so Program.Main stays int-returning.
-                var result = runner.RunAsync().GetAwaiter().GetResult();
-                var summary = result.summary;
-                var run = result.run;
-
-                QuantFrameworks.Reporting.SummaryReporterWriter.WriteConsole(summary);
-                Directory.CreateDirectory(Path.GetDirectoryName(cfg.OutputPath) ?? ".");
-                QuantFrameworks.Reporting.SummaryReporterWriter.WriteCsv(summary, cfg.OutputPath);
-
-                Directory.CreateDirectory(Path.GetDirectoryName(cfg.DailyNavCsv) ?? ".");
-                QuantFrameworks.Reporting.RunReportWriter.WriteDailyCsv(run, cfg.DailyNavCsv);
-
-                Directory.CreateDirectory(Path.GetDirectoryName(cfg.RunJson) ?? ".");
-                QuantFrameworks.Reporting.RunReportWriter.WriteJson(run, cfg.RunJson);
-
-                Console.WriteLine($"\nSaved:");
-                Console.WriteLine($"  {Path.GetFullPath(cfg.OutputPath)}");
-                Console.WriteLine($"  {Path.GetFullPath(cfg.DailyNavCsv)}");
-                Console.WriteLine($"  {Path.GetFullPath(cfg.RunJson)}");
-
-                return 0;
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine("Backtest failed: " + ex.Message);
-                return 1;
-            }
+            Console.Error.WriteLine("ERROR: backtest requires --config <path-to-config.json>");
+            return 2;
         }
 
-    // -------------------------
-    // NEW: Optimize (grid + WFO)
-    // -------------------------
+        try
+        {
+            cfgPath = ResolveConfigPath(cfgPath);
+            var json = File.ReadAllText(cfgPath);
+            var cfg = System.Text.Json.JsonSerializer.Deserialize<QuantFrameworks.Backtest.BacktestConfig>(
+                json, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                ?? throw new InvalidOperationException("Invalid config JSON.");
+
+            Console.WriteLine("Backtest config:");
+            if (!string.IsNullOrWhiteSpace(cfg.Symbol))
+                Console.WriteLine($"  Symbol        : {cfg.Symbol}");
+            if (cfg.Symbols != null && cfg.Symbols.Count > 0)
+                Console.WriteLine("  Symbols       : " + string.Join(",", cfg.Symbols));
+            Console.WriteLine($"  Fast/Slow SMA : {cfg.Fast}/{cfg.Slow}");
+            if (cfg.StopLossPct > 0 || cfg.TakeProfitPct > 0)
+            {
+                Console.WriteLine($"  StopLossPct   : {cfg.StopLossPct:P}");
+                Console.WriteLine($"  TakeProfitPct : {cfg.TakeProfitPct:P}");
+            }
+            if (cfg.SlippageBps > 0) Console.WriteLine($"  Slippage (bps): {cfg.SlippageBps}");
+            if (cfg.CommissionPerOrder > 0 || cfg.PercentFee > 0 || cfg.MinFee > 0)
+            {
+                Console.WriteLine($"  Commission/Fill : {cfg.CommissionPerOrder}");
+                Console.WriteLine($"  Percent Fee     : {cfg.PercentFee:P}");
+                if (cfg.MinFee > 0) Console.WriteLine($"  Min Fee         : {cfg.MinFee}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(cfg.SizingMode))
+                Console.WriteLine($"  Sizing Mode   : {cfg.SizingMode}");
+            if (cfg.DollarsPerTrade > 0)
+                Console.WriteLine($"  $/Trade       : {cfg.DollarsPerTrade}");
+            if (cfg.PercentNavPerTrade > 0)
+                Console.WriteLine($"  %NAV/Trade    : {cfg.PercentNavPerTrade:P}");
+            if (cfg.LotSize > 1)
+                Console.WriteLine($"  Lot Size      : {cfg.LotSize}");
+            if (cfg.MaxGrossExposurePct > 0)
+                Console.WriteLine($"  Max Gross Exp.: {cfg.MaxGrossExposurePct:P0}");
+
+            var runner = new QuantFrameworks.Backtest.MultiAssetBacktestRunner(cfg);
+            var result = runner.RunAsync().GetAwaiter().GetResult();
+            var summary = result.summary;
+            var run = result.run;
+
+            QuantFrameworks.Reporting.SummaryReporterWriter.WriteConsole(summary);
+            Directory.CreateDirectory(Path.GetDirectoryName(cfg.OutputPath) ?? ".");
+            QuantFrameworks.Reporting.SummaryReporterWriter.WriteCsv(summary, cfg.OutputPath);
+
+            Directory.CreateDirectory(Path.GetDirectoryName(cfg.DailyNavCsv) ?? ".");
+            QuantFrameworks.Reporting.RunReportWriter.WriteDailyCsv(run, cfg.DailyNavCsv);
+
+            Directory.CreateDirectory(Path.GetDirectoryName(cfg.RunJson) ?? ".");
+            QuantFrameworks.Reporting.RunReportWriter.WriteJson(run, cfg.RunJson);
+
+            Console.WriteLine($"\nSaved:");
+            Console.WriteLine($"  {Path.GetFullPath(cfg.OutputPath)}");
+            Console.WriteLine($"  {Path.GetFullPath(cfg.DailyNavCsv)}");
+            Console.WriteLine($"  {Path.GetFullPath(cfg.RunJson)}");
+
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("Backtest failed: " + ex.Message);
+            return 1;
+        }
+    }
+
+    // --------------- Optimize ---------------
     private static int RunOptimize(string[] args)
     {
         string? cfgPath = GetArg(args, "config");
@@ -353,18 +353,16 @@ public static class Program
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine("Optimize failed: " + ex.Message);
+            Console.Error.WriteLine("Optimize failed: " + Message(ex));
             return 1;
         }
+
+        static string Message(Exception ex) => ex.Message;
     }
 
-    // -----------------------------
-    // NEW: Tear Sheet report command
-    // -----------------------------
+    // --------------- Tear Sheet report ---------------
     private static int RunReport(string[] args)
     {
-        // Args: --summary <path to summary csv/json> --run <path to run.json> --out <html path>
-        // Optional: --md <md path> --title "My Tear Sheet"
         string? summaryPath = GetArg(args, "summary");
         string? runPath = GetArg(args, "run");
         string? outHtml = GetArg(args, "out");
@@ -379,11 +377,9 @@ public static class Program
 
         try
         {
-            // Load previously saved summary + run
             var run     = ReportLoaders.LoadRunJson(runPath);
             var summary = ReportLoaders.LoadSummaryFlexible(summaryPath, run.EndingNAV);
 
-            // Build tear sheet model and write outputs
             var model = TearsheetFromRun.Build(summary, run, title);
             TearsheetWriter.WriteHtml(model, outHtml);
             if (!string.IsNullOrWhiteSpace(outMd))
@@ -401,9 +397,7 @@ public static class Program
         }
     }
 
-    // --------
-    // Helpers
-    // --------
+    // -------- Helpers --------
     private static string? GetArg(string[] args, string name, string? def = null)
     {
         var i = Array.FindIndex(args, a => a == $"--{name}");
@@ -449,7 +443,6 @@ public static class Program
         return dict;
     }
 
-    // More friendly config resolving (handles relative paths & current dir)
     private static string ResolveConfigPath(string cfgPath)
     {
         if (Path.IsPathRooted(cfgPath) && File.Exists(cfgPath)) return cfgPath;

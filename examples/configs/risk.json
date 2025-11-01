@@ -1,0 +1,18 @@
+{
+  "baseCurrency": "USD",
+  "maxPerSymbolExposure": 20000,
+  "maxAggregateExposure": 100000,
+  "maxDailyNotional": 50000,
+  "blacklist": ["ILLEGAL", "PENNY"],
+  "sizing": {
+    "mode": "VolTarget",
+    "fixedFraction": 0.1,
+    "volTargetAnnual": 0.15,
+    "lookbackDays": 20,
+    "capital": 100000
+  },
+  "perSymbolMaxQty": {
+    "ABC": 2000,
+    "XYZ": 500
+  }
+}
