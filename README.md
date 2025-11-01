@@ -289,4 +289,50 @@ dotnet run --project src -- report \
 
 Total tests  - 46
 
+## RiskGuard (new)
+
+Validate candidate orders against configurable risk limits and compute position sizes.
+
+### Inputs
+- `--orders <path>`: CSV `timestamp,symbol,side,qty,price` (qty can be blank if sizing is enabled)
+- `--config <path>`: JSON risk config (see example below)
+- `--prices <path>` (optional): CSV `date,symbol,close` for volatility targeting
+- `--out <dir>`: Output directory
+
+### Outputs
+- `<out>/validated_orders.csv` (only approved orders, with final qty)
+- `<out>/risk_report.csv` (each input order with pass/fail + reasons)
+
+### Run
+```bash
+dotnet run --project src -- risk-check \
+  --orders ./data/orders.csv \
+  --config ./config/risk.json \
+  --prices ./data/prices.csv \
+  --out ./out
+````
+
+### Example `config/risk.json`
+
+```json
+{
+  "baseCurrency": "USD",
+  "maxPerSymbolExposure": 20000,
+  "maxAggregateExposure": 100000,
+  "maxDailyNotional": 50000,
+  "blacklist": ["ILLEGAL", "PENNY"],
+  "sizing": {
+    "mode": "VolTarget",        // "FixedFraction" | "VolTarget" | "None"
+    "fixedFraction": 0.1,       // 10% of capital per trade (when mode = FixedFraction)
+    "volTargetAnnual": 0.15,    // 15% annualized target vol (when mode = VolTarget)
+    "lookbackDays": 20,
+    "capital": 100000
+  },
+  "perSymbolMaxQty": {
+    "ABC": 2000,
+    "XYZ": 500
+  }
+}
+```
+
 Risk Guard Test - 53
