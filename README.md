@@ -373,3 +373,36 @@ dotnet run -- data-check \
 
 
 data quality test - 59
+
+
+### Signal Generator (SIG) — NEW
+
+Compute popular indicators and derive trading signals from a single OHLCV CSV.
+
+## Indicators
+- SMA(fast/slow)
+- RSI(period)
+- Bollinger Bands(period, std)
+- MACD(fast/slow/signal)
+
+## Rules (optional)
+- SMA crossover: BUY when SMA_fast crosses above SMA_slow; SELL when crosses below
+- RSI thresholds: BUY below `--rsi-buy`; SELL above `--rsi-sell`
+
+## CLI
+```bash
+dotnet run -- signal \
+  --data examples/data/AAPL.csv \
+  --out out/sig \
+  --sma-fast 10 --sma-slow 20 \
+  --rsi 14 --rsi-buy 30 --rsi-sell 70 \
+  --bb 20 --bb-std 2 \
+  --macd-fast 12 --macd-slow 26 --macd-signal 9
+````
+
+## Outputs
+
+* `<out>/indicators.csv` → `Date,Close,SMA_fast,SMA_slow,RSI,BB_upper,BB_lower,MACD,MACD_signal`
+* `<out>/signals.csv` → `Date,Signal,Reason` where `Signal ∈ {BUY,SELL,FLAT}`
+
+signal generator tests - 65

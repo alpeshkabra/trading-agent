@@ -2,6 +2,7 @@ using Quant.Models;
 using Quant.Analytics;
 using Quant.Reports;
 using Quant.Portfolio;
+using QuantFrameworks.Signals;
 using QuantFrameworks.DataCheck;
 
 // New usings for backtest/optimize/report
@@ -120,19 +121,30 @@ public static class Program
         if (string.Equals(args[0], "report", StringComparison.OrdinalIgnoreCase))
             return RunReport(args);
 
-        if (string.Equals(args[0], "data-check", StringComparison.OrdinalIgnoreCase) ||
-            (args.Contains("--data") && args.Contains("--out")))
+        // ✅ Subcommand: "signal" (explicit OR permissive by flags)
+        if (string.Equals(args[0], "signal", StringComparison.OrdinalIgnoreCase) ||
+            ((args.Contains("--data") && args.Contains("--out")) &&
+            (args.Contains("--sma-fast") || args.Contains("--sma-slow") ||
+            args.Contains("--rsi") || args.Contains("--bb") ||
+            args.Contains("--macd-fast") || args.Contains("--macd-slow") || args.Contains("--macd-signal"))))
+        {
+            return RunSignal(args);
+        }
+
+        // ✅ Subcommand: "data-check" (EXPLICIT ONLY — prevents hijacking `signal`)
+        if (string.Equals(args[0], "data-check", StringComparison.OrdinalIgnoreCase))
         {
             return RunDataCheck(args);
         }
-        
+
         // Subcommand: "risk-check" (no System.CommandLine dependency)
         if (string.Equals(args[0], "risk-check", StringComparison.OrdinalIgnoreCase) ||
-            // also allow calling without explicit subcommand if flags are present
             (args.Contains("--orders") && args.Contains("--config") && args.Contains("--out")))
         {
             return QuantFrameworks.Risk.RiskEntry.Run(args);
         }
+
+        // Default: existing SPY vs stocks flow
         return RunSpyCompare(args);
     }
 
@@ -503,9 +515,9 @@ public static class Program
 
             // map to exit codes if requested
             bool shouldFail =
-                (failOn == "any"        && summary.TotalIssues > 0) ||
-                (failOn == "outliers"   && summary.Outliers > 0) ||
-                (failOn == "gaps"       && summary.Gaps > 0) ||
+                (failOn == "any" && summary.TotalIssues > 0) ||
+                (failOn == "outliers" && summary.Outliers > 0) ||
+                (failOn == "gaps" && summary.Gaps > 0) ||
                 (failOn == "duplicates" && summary.Duplicates > 0);
 
             return shouldFail ? 1 : 0;
@@ -516,4 +528,54 @@ public static class Program
             return 1;
         }
     }
+    
+    private static int RunSignal(string[] args)
+    {
+        string? data = GetArg(args, "data");
+        string outDir = GetArg(args, "out", "out/sig")!;
+        int smaFast = int.TryParse(GetArg(args, "sma-fast"), out var sf) ? sf : 0;
+        int smaSlow = int.TryParse(GetArg(args, "sma-slow"), out var ss) ? ss : 0;
+        int rsi = int.TryParse(GetArg(args, "rsi"), out var rp) ? rp : 0;
+        double? rsiBuy = double.TryParse(GetArg(args, "rsi-buy"), NumberStyles.Any, CultureInfo.InvariantCulture, out var rb) ? rb : null;
+        double? rsiSell = double.TryParse(GetArg(args, "rsi-sell"), NumberStyles.Any, CultureInfo.InvariantCulture, out var rs) ? rs : null;
+        int bb = int.TryParse(GetArg(args, "bb"), out var bbp) ? bbp : 0;
+        double bbStd = double.TryParse(GetArg(args, "bb-std", "2"), NumberStyles.Any, CultureInfo.InvariantCulture, out var s) ? s : 2.0;
+        int macdFast = int.TryParse(GetArg(args, "macd-fast"), out var mf) ? mf : 0;
+        int macdSlow = int.TryParse(GetArg(args, "macd-slow"), out var ms) ? ms : 0;
+        int macdSignal = int.TryParse(GetArg(args, "macd-signal"), out var msi) ? msi : 0;
+
+        if (string.IsNullOrWhiteSpace(data))
+        {
+            Console.Error.WriteLine("ERROR: signal requires --data <path-to-ohlcv.csv>");
+            return 2;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(outDir);
+            var cfg = new QuantFrameworks.Signals.SignalConfig
+            {
+                SmaFast = smaFast,
+                SmaSlow = smaSlow,
+                Rsi = rsi,
+                RsiBuy = rsiBuy,
+                RsiSell = rsiSell,
+                Bb = bb,
+                BbStd = bbStd,
+                MacdFast = macdFast,
+                MacdSlow = macdSlow,
+                MacdSignal = macdSignal
+            };
+
+            SignalRunner.Run(data, outDir, cfg);
+            Console.WriteLine($"Saved indicators & signals to: {Path.GetFullPath(outDir)}");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("Signal generation failed: " + ex.Message);
+            return 1;
+        }
+    }
+
 }
