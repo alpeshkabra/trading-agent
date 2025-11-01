@@ -6,6 +6,7 @@ using QuantFrameworks.Signals;
 using QuantFrameworks.DataCheck;
 using QuantFrameworks.Corr;
 using QuantFrameworks.Beta;
+using QuantFrameworks.Drawdown;
 
 // New usings for backtest/optimize/report
 using System.Globalization;
@@ -152,6 +153,11 @@ public static class Program
         // Subcommand: "beta"
         if (string.Equals(args[0], "beta", StringComparison.OrdinalIgnoreCase))
             return RunBeta(args);
+
+        // Subcommand: "drawdown"
+        if (string.Equals(args[0], "drawdown", StringComparison.OrdinalIgnoreCase))
+            return RunDrawdown(args);
+    
         // Default: existing SPY vs stocks flow
         return RunSpyCompare(args);
     }
@@ -644,5 +650,33 @@ public static class Program
         }
     }
 
+    // --------------- Drawdown & Streaks ---------------
+    private static int RunDrawdown(string[] args)
+    {
+        string? symSpec = GetArg(args, "symbols");
+        string outDir = GetArg(args, "out", "out/dd")!;
+        int top = int.TryParse(GetArg(args, "top"), out var t) ? Math.Max(1, t) : 10;
+
+        if (string.IsNullOrWhiteSpace(symSpec))
+        {
+            Console.Error.WriteLine("ERROR: drawdown requires --symbols \"TICK=path,TICK=path,...\"");
+            return 2;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(outDir);
+            var cfg = new DdConfig { OutputDir = outDir, TopN = top };
+            var pairs = DdCli.ParseSymbols(symSpec);
+            DdRunner.Run(pairs, cfg);
+            Console.WriteLine($"Saved drawdown reports under: {Path.GetFullPath(outDir)}");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("drawdown failed: " + ex.Message);
+            return 1;
+        }
+    }
 
 }

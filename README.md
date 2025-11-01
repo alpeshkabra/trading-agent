@@ -353,7 +353,7 @@ Validate OHLCV CSVs for common data issues before running backtests.
 
 ## CLI
 ```bash
-dotnet run -- data-check \
+dotnet run --project src -- data-check \
   --data examples/data/AAPL.csv \
   --out out/dqx \
   --max-gap-days 3 \
@@ -391,7 +391,7 @@ Compute popular indicators and derive trading signals from a single OHLCV CSV.
 
 ## CLI
 ```bash
-dotnet run -- signal \
+dotnet run --project src -- signal \
   --data examples/data/AAPL.csv \
   --out out/sig \
   --sma-fast 10 --sma-slow 20 \
@@ -413,7 +413,7 @@ Compute rolling pairwise correlations and rolling volatilities from multiple OHL
 
 ### CLI
 ```bash
-dotnet run -- corr \
+dotnet run --project src -- corr \
   --symbols "AAPL=examples/data/AAPL.csv,MSFT=examples/data/MSFT.csv,SPY=examples/data/SPY.csv" \
   --window 20 \
   --out out/corr
@@ -427,7 +427,7 @@ Estimate rolling CAPM beta/alpha of one or more assets vs a benchmark from OHLCV
 
 ## CLI
 ```bash
-dotnet run -- beta \
+dotnet run --project src -- beta \
   --symbols "AAPL=examples/data/AAPL.csv,MSFT=examples/data/MSFT.csv" \
   --benchmark examples/data/SPY.csv \
   --window 60 \
@@ -435,3 +435,14 @@ dotnet run -- beta \
 ```
 
 Rolling Beta tests- 74
+
+
+## Drawdown & Streaks (DD) — NEW
+
+Analyze equity curve drawdowns and up/down streaks from OHLCV CSVs.
+
+### CLI
+```bash
+dotnet run --project src -- drawdown --symbols "AAPL=examples/data/AAPL.csv,MSFT=examples/data/MSFT.csv" --out out/
+dd --top 10
+```
