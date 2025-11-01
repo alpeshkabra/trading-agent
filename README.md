@@ -286,7 +286,7 @@ dotnet run --project src -- report \
   --out out/tearsheet.html \
   --md out/tearsheet.md \
   --title "My Strategy"
-
+```
 Total tests  - 46
 
 
