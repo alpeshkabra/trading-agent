@@ -289,8 +289,8 @@ dotnet run --project src -- report \
 
 Total tests  - 46
 
-````md
-## RiskGuard (new)
+
+### RiskGuard (new)
 
 Validate candidate orders against configurable risk limits and compute position sizes.
 
@@ -336,6 +336,5 @@ dotnet run --project src -- risk-check \
 }
 ```
 
-````
 
 Risk Guard Test - 53
