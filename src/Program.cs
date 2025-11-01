@@ -4,6 +4,7 @@ using Quant.Reports;
 using Quant.Portfolio;
 using QuantFrameworks.Signals;
 using QuantFrameworks.DataCheck;
+using QuantFrameworks.Corr;
 
 // New usings for backtest/optimize/report
 using System.Globalization;
@@ -144,6 +145,8 @@ public static class Program
             return QuantFrameworks.Risk.RiskEntry.Run(args);
         }
 
+        if (string.Equals(args[0], "corr", StringComparison.OrdinalIgnoreCase))
+            return RunCorr(args);
         // Default: existing SPY vs stocks flow
         return RunSpyCompare(args);
     }
@@ -574,6 +577,34 @@ public static class Program
         catch (Exception ex)
         {
             Console.Error.WriteLine("Signal generation failed: " + ex.Message);
+            return 1;
+        }
+    }
+
+    private static int RunCorr(string[] args)
+    {
+        string? symSpec = GetArg(args, "symbols");
+        string outDir = GetArg(args, "out", "out/corr")!;
+        int window = int.TryParse(GetArg(args, "window"), out var w) ? Math.Max(2, w) : 20;
+
+        if (string.IsNullOrWhiteSpace(symSpec))
+        {
+            Console.Error.WriteLine("ERROR: corr requires --symbols \"TICK=path,TICK=path,...\"");
+            return 2;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(outDir);
+            var cfg = new CorrConfig { Window = window, OutputDir = outDir };
+            var pairs = CorrCli.ParseSymbols(symSpec); // Dictionary<string,string>
+            CorrRunner.Run(pairs, cfg);
+            Console.WriteLine($"Saved rolling correlation report under: {Path.GetFullPath(outDir)}");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("corr failed: " + ex.Message);
             return 1;
         }
     }

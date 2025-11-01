@@ -406,3 +406,14 @@ dotnet run -- signal \
 * `<out>/signals.csv` → `Date,Signal,Reason` where `Signal ∈ {BUY,SELL,FLAT}`
 
 signal generator tests - 65
+
+### Rolling Correlation & Volatility (CORR) — NEW
+
+Compute rolling pairwise correlations and rolling volatilities from multiple OHLCV CSVs (Close).
+
+### CLI
+```bash
+dotnet run -- corr \
+  --symbols "AAPL=examples/data/AAPL.csv,MSFT=examples/data/MSFT.csv,SPY=examples/data/SPY.csv" \
+  --window 20 \
+  --out out/corr
