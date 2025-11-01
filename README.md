@@ -294,17 +294,17 @@ Total tests  - 46
 
 Validate candidate orders against configurable risk limits and compute position sizes.
 
-### Inputs
+## Inputs
 - `--orders <path>`: CSV `timestamp,symbol,side,qty,price` (qty can be blank if sizing is enabled)
 - `--config <path>`: JSON risk config (see example below)
 - `--prices <path>` (optional): CSV `date,symbol,close` for volatility targeting
 - `--out <dir>`: Output directory
 
-### Outputs
+## Outputs
 - `<out>/validated_orders.csv` (only approved orders, with final qty)
 - `<out>/risk_report.csv` (each input order with pass/fail + reasons)
 
-### Run
+## Run
 ```bash
 dotnet run --project src -- risk-check \
   --orders ./data/orders.csv \
@@ -313,7 +313,7 @@ dotnet run --project src -- risk-check \
   --out ./out
 ````
 
-### Example `config/risk.json`
+## Example `config/risk.json`
 
 ```json
 {
