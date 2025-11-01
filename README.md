@@ -338,3 +338,38 @@ dotnet run --project src -- risk-check \
 
 
 Risk Guard Test - 53
+
+### Data Quality Checker (DQX) — NEW
+
+Validate OHLCV CSVs for common data issues before running backtests.
+
+## What it checks
+- Missing dates / large gaps (configurable)
+- Duplicated dates
+- Non-monotonic date order
+- Zero/negative prices or volume
+- Return outliers (|daily return| > threshold)
+- NaNs/blank cells
+
+## CLI
+```bash
+dotnet run -- data-check \
+  --data examples/data/AAPL.csv \
+  --out out/dqx \
+  --max-gap-days 3 \
+  --max-abs-return 0.25 \
+  --min-volume 1 \
+  --fail-on any        # none | any | outliers | gaps | duplicates
+````
+
+### Inputs
+
+* `--data` : Path to a single CSV (header: `Date,Open,High,Low,Close,Volume`)
+
+### Outputs
+
+* `<out>/report.csv` — one-line summary of counts
+* `<out>/anomalies.csv` — rows: `date,kind,detail`
+
+
+data quality test - 59

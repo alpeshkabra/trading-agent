@@ -2,6 +2,7 @@ using Quant.Models;
 using Quant.Analytics;
 using Quant.Reports;
 using Quant.Portfolio;
+using QuantFrameworks.DataCheck;
 
 // New usings for backtest/optimize/report
 using System.Globalization;
@@ -119,6 +120,12 @@ public static class Program
         if (string.Equals(args[0], "report", StringComparison.OrdinalIgnoreCase))
             return RunReport(args);
 
+        if (string.Equals(args[0], "data-check", StringComparison.OrdinalIgnoreCase) ||
+            (args.Contains("--data") && args.Contains("--out")))
+        {
+            return RunDataCheck(args);
+        }
+        
         // Subcommand: "risk-check" (no System.CommandLine dependency)
         if (string.Equals(args[0], "risk-check", StringComparison.OrdinalIgnoreCase) ||
             // also allow calling without explicit subcommand if flags are present
@@ -126,8 +133,6 @@ public static class Program
         {
             return QuantFrameworks.Risk.RiskEntry.Run(args);
         }
-
-        // Default: existing SPY vs stocks flow
         return RunSpyCompare(args);
     }
 
@@ -463,5 +468,52 @@ public static class Program
             $"Checked:\n  - {string.Join("\n  - ", candidates)}\n" +
             $"Tip: create examples\\configs\\sma.json or pass --config <full path>."
         );
+    }
+
+    private static int RunDataCheck(string[] args)
+    {
+        string? data = GetArg(args, "data");
+        string outDir = GetArg(args, "out", "out/dqx")!;
+        int maxGapDays = int.TryParse(GetArg(args, "max-gap-days"), out var g) ? g : 3;
+        double maxAbsRet = double.TryParse(GetArg(args, "max-abs-return", "0.25"),
+                                        System.Globalization.NumberStyles.Any,
+                                        System.Globalization.CultureInfo.InvariantCulture,
+                                        out var r) ? r : 0.25;
+        long minVol = long.TryParse(GetArg(args, "min-volume"), out var mv) ? mv : 0;
+        string failOn = GetArg(args, "fail-on", "none")!.ToLowerInvariant(); // none|any|outliers|gaps|duplicates
+
+        if (string.IsNullOrWhiteSpace(data))
+        {
+            Console.Error.WriteLine("ERROR: data-check requires --data <path-to-ohlcv.csv>");
+            return 2;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(outDir);
+            var cfg = new QuantFrameworks.DataCheck.DqxConfig
+            {
+                MaxGapDays = maxGapDays,
+                MaxAbsReturn = maxAbsRet,
+                MinVolume = minVol,
+                FailOn = failOn
+            };
+            var summary = QuantFrameworks.DataCheck.DataCheckRunner.Run(data, outDir, cfg);
+            Console.WriteLine($"DQX: gaps={summary.Gaps} dup={summary.Duplicates} outliers={summary.Outliers} badRows={summary.BadRows}");
+
+            // map to exit codes if requested
+            bool shouldFail =
+                (failOn == "any"        && summary.TotalIssues > 0) ||
+                (failOn == "outliers"   && summary.Outliers > 0) ||
+                (failOn == "gaps"       && summary.Gaps > 0) ||
+                (failOn == "duplicates" && summary.Duplicates > 0);
+
+            return shouldFail ? 1 : 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("Data check failed: " + ex.Message);
+            return 1;
+        }
     }
 }
