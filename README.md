@@ -446,3 +446,5 @@ Analyze equity curve drawdowns and up/down streaks from OHLCV CSVs.
 dotnet run --project src -- drawdown --symbols "AAPL=examples/data/AAPL.csv,MSFT=examples/data/MSFT.csv" --out out/
 dd --top 10
 ```
+
+dd tests - 79
