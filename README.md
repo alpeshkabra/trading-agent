@@ -288,3 +288,5 @@ dotnet run --project src -- report \
   --title "My Strategy"
 
 Total tests  - 46
+
+Risk Guard Test - 53
