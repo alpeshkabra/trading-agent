@@ -311,7 +311,7 @@ dotnet run --project src -- risk-check \
   --config ./config/risk.json \
   --prices ./data/prices.csv \
   --out ./out
-````
+```
 
 ## Example `config/risk.json`
 
@@ -360,7 +360,7 @@ dotnet run -- data-check \
   --max-abs-return 0.25 \
   --min-volume 1 \
   --fail-on any        # none | any | outliers | gaps | duplicates
-````
+```
 
 ### Inputs
 
@@ -398,7 +398,7 @@ dotnet run -- signal \
   --rsi 14 --rsi-buy 30 --rsi-sell 70 \
   --bb 20 --bb-std 2 \
   --macd-fast 12 --macd-slow 26 --macd-signal 9
-````
+```
 
 ## Outputs
 
@@ -417,3 +417,21 @@ dotnet run -- corr \
   --symbols "AAPL=examples/data/AAPL.csv,MSFT=examples/data/MSFT.csv,SPY=examples/data/SPY.csv" \
   --window 20 \
   --out out/corr
+```
+
+rolling corr - 70
+
+### Rolling Beta & Alpha (BETA) — NEW
+
+Estimate rolling CAPM beta/alpha of one or more assets vs a benchmark from OHLCV CSVs (Close).
+
+## CLI
+```bash
+dotnet run -- beta \
+  --symbols "AAPL=examples/data/AAPL.csv,MSFT=examples/data/MSFT.csv" \
+  --benchmark examples/data/SPY.csv \
+  --window 60 \
+  --out out/beta
+```
+
+Rolling Beta tests- 74

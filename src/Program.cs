@@ -5,6 +5,7 @@ using Quant.Portfolio;
 using QuantFrameworks.Signals;
 using QuantFrameworks.DataCheck;
 using QuantFrameworks.Corr;
+using QuantFrameworks.Beta;
 
 // New usings for backtest/optimize/report
 using System.Globalization;
@@ -147,6 +148,10 @@ public static class Program
 
         if (string.Equals(args[0], "corr", StringComparison.OrdinalIgnoreCase))
             return RunCorr(args);
+
+        // Subcommand: "beta"
+        if (string.Equals(args[0], "beta", StringComparison.OrdinalIgnoreCase))
+            return RunBeta(args);
         // Default: existing SPY vs stocks flow
         return RunSpyCompare(args);
     }
@@ -608,5 +613,36 @@ public static class Program
             return 1;
         }
     }
+
+    // --------------- Rolling Beta & Alpha ---------------
+    private static int RunBeta(string[] args)
+    {
+        string? symSpec = GetArg(args, "symbols");
+        string? bench = GetArg(args, "benchmark");
+        string outDir = GetArg(args, "out", "out/beta")!;
+        int window = int.TryParse(GetArg(args, "window"), out var w) ? Math.Max(2, w) : 60;
+
+        if (string.IsNullOrWhiteSpace(symSpec) || string.IsNullOrWhiteSpace(bench))
+        {
+            Console.Error.WriteLine("ERROR: beta requires --symbols \"TICK=path,...\" and --benchmark <csv>");
+            return 2;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(outDir);
+            var cfg = new BetaConfig { Window = window, OutputDir = outDir };
+            var pairs = BetaCli.ParseSymbols(symSpec);
+            BetaRunner.Run(pairs, bench, cfg);
+            Console.WriteLine($"Saved beta/alpha reports under: {Path.GetFullPath(outDir)}");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("beta failed: " + ex.Message);
+            return 1;
+        }
+    }
+
 
 }
